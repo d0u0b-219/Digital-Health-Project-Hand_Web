@@ -54,62 +54,69 @@
         .mock-game-frame { border: 4px solid #ddd; border-radius: 10px; background: #f8f9fa; padding: 20px; margin: 20px 0; text-align: center; position: relative; min-height: 200px; }
 
         /* ============================================== */
-        /* 📱 手機與平板專屬優化 (Responsive Web Design) 📱 */
+        /* 📱 手機與平板專屬優化 (強制橫向遮罩 + 鏡頭縮放) 📱 */
         /* ============================================== */
-        @media (max-width: 768px) {
-            /* 1. 遊戲大外框改為上下排列，並允許滾動 */
+        
+        /* 1. 強制轉向提示 (當偵測到是直立螢幕時顯示，並隱藏遊戲) */
+        #rotateOverlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); color: white; z-index: 99999; flex-direction: column; justify-content: center; align-items: center; font-size: 24px; font-weight: bold; text-align: center; }
+        
+        @media (orientation: portrait) and (max-width: 768px) {
+            #rotateOverlay { display: flex; }
+            #gameArea, .box-container, #mainTitle { display: none !important; }
+        }
+
+        /* 2. 手機橫向排版 (Landscape) - 絕對不超出版面 */
+        @media (orientation: landscape) and (max-height: 600px) {
             #gameArea { 
-                flex-direction: column; 
-                padding: 15px; 
+                flex-direction: row; 
+                padding: 10px; 
                 gap: 15px; 
-                justify-content: flex-start;
-                overflow-y: auto; 
+                align-items: center; /* 垂直置中 */
+                justify-content: center;
             }
             
-            /* 2. 鏡頭畫面改為自適應螢幕寬度 */
+            /* 🌟 核心修正：將鏡頭高度鎖定在螢幕的 90%，寬度自適應，絕對不會出界 */
             .video-container { 
-                width: 100%; 
-                height: auto; /* 高度交由 aspect-ratio 自動計算 */
+                height: 90vh; 
+                width: auto; 
                 aspect-ratio: 16 / 9; 
-                border-width: 4px; /* 邊框變細 */
+                flex-shrink: 0;
+                border-width: 4px;
                 border-radius: 8px;
             }
             
-            /* 3. 縮小浮動儀表板的字體與間距 */
+            /* 縮小浮動提示框的大小，確保不會擋到臉 */
             #hudTime { font-size: 16px; bottom: 10px; left: 10px; padding: 6px 12px; }
-            #hudPrompt { font-size: 20px; top: 10px; padding: 8px 20px; }
+            #hudPrompt { font-size: 22px; top: 10px; padding: 6px 15px; }
             .game-overlay { bottom: 10px; right: 10px; }
-            .alert-text { font-size: 18px; padding: 6px 12px; margin-top: 5px; border-width: 2px; }
+            .alert-text { font-size: 16px; padding: 6px 12px; margin-top: 5px; }
             
-            /* 4. 側邊欄改為下方橫向排列的資訊卡片 */
-            .side-panel { width: 100%; align-items: stretch; }
-            #gameHUD { 
-                display: flex; 
-                flex-wrap: wrap; 
-                justify-content: space-between; 
-                background: white; 
-                padding: 15px; 
-                border-radius: 10px; 
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
-                width: 100%; 
-                box-sizing: border-box;
-            }
-            .game-info-line { font-size: 16px; margin: 5px 0; width: 48%; /* 讓資訊變成兩排 */ }
-            
-            /* 5. 結束按鈕變寬適應手指點擊 */
-            .end-btn { margin-top: 15px; width: 100%; font-size: 18px; padding: 12px; }
-            
-            /* 6. 預覽說明的文字與框體縮小 */
-            .preview-instruction-box, .preview-instruction-box-easy, .preview-instruction-box-number {
-                font-size: 16px; padding: 6px 12px;
-            }
+            /* 說明預覽框內的文字縮小 */
+            .preview-instruction-box, .preview-instruction-box-easy, .preview-instruction-box-number { font-size: 14px; padding: 5px 10px; }
             .mock-game-frame p { font-size: 14px !important; }
+            
+            /* 將右側資訊欄縮小，並讓它可以獨立滾動 */
+            .side-panel { 
+                width: auto;
+                max-width: 250px;
+                height: 90vh;
+                overflow-y: auto; 
+                justify-content: flex-start;
+            }
+            #gameHUD { padding: 10px; margin-top: 0; }
+            .game-info-line { font-size: 14px; margin: 4px 0; }
+            .end-btn { padding: 10px; font-size: 16px; margin-top: 15px; width: 100%; }
         }
 
+        
     </style>
 </head>
 <body>
-
+    <div id="rotateOverlay">
+        <div style="font-size: 60px; margin-bottom: 20px;">📱🔄</div>
+        <div>請將手機旋轉至「橫向」<br>以獲得最佳訓練體驗！</div>
+    </div>
+    
     <h1 id="mainTitle" style="text-align: center; color: #2c3e50; margin-top: 40px;">~手指遊戲~</h1>
     
     <div id="welcomeBox" class="box-container">
