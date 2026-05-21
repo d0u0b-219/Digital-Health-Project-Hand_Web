@@ -3,7 +3,7 @@
 // ==========================================
 import { initPalmarGame, drawPalmarGame, checkPalmarLogic } from './game_palmar.js';
 import { initPincerGame, drawPincerGame, checkPincerLogic } from './game_pincer.js';
-import { initNumbersGame, drawNumbersGame, checkNumbersLogic } from './game_numbers.js'; // 🌟 引入新遊戲
+import { initNumbersGame, drawNumbersGame, checkNumbersLogic } from './game_numbers.js';
 
 let gameState = { 
     isPlaying: false, gameType: 'palmar', handUsed: 'right', difficulty: 'easy', 
@@ -88,33 +88,53 @@ document.getElementById('preGameInstructionBtn').addEventListener('click', () =>
     } else if (gameState.gameType === 'pincer') {
         if (gameState.difficulty === 'hard') {
             pincerHard.style.display = 'block';
-            
-            // 🌟 修正 Bug 1：使用 visibility 來隱藏，保留空間讓排版不亂跑 🌟
             const leftBox = document.querySelector('.mock-left-box');
             const rightBox = document.querySelector('.mock-right-box');
-            
-            if (gameState.handUsed === 'right') {
-                leftBox.style.visibility = 'hidden';
-                rightBox.style.visibility = 'visible';
-            } else if (gameState.handUsed === 'left') {
-                leftBox.style.visibility = 'visible';
-                rightBox.style.visibility = 'hidden';
-            } else {
-                leftBox.style.visibility = 'visible';
-                rightBox.style.visibility = 'visible';
-            }
-        } else {
-            pincerEasy.style.display = 'block';
-        }
+            if (gameState.handUsed === 'right') { leftBox.style.visibility = 'hidden'; rightBox.style.visibility = 'visible'; } 
+            else if (gameState.handUsed === 'left') { leftBox.style.visibility = 'visible'; rightBox.style.visibility = 'hidden'; } 
+            else { leftBox.style.visibility = 'visible'; rightBox.style.visibility = 'visible'; }
+        } else pincerEasy.style.display = 'block';
     }
     showSection('pincerPreviewBox');
 });
+
+// 🌟 倒數計時器動畫函式 🌟
+function startCountdown(onComplete) {
+    const overlay = document.getElementById('countdownOverlay');
+    const countdownText = document.getElementById('countdownText');
+    
+    let count = 3;
+    countdownText.innerText = count;
+    countdownText.style.color = "#007bff";
+    countdownText.style.animation = 'none';
+    countdownText.offsetHeight; 
+    countdownText.style.animation = 'popIn 0.3s ease-out';
+
+    let timer = setInterval(() => {
+        count--;
+        if (count > 0) {
+            countdownText.innerText = count;
+            countdownText.style.animation = 'none';
+            countdownText.offsetHeight; 
+            countdownText.style.animation = 'popIn 0.3s ease-out';
+        } else if (count === 0) {
+            countdownText.innerText = "Start!";
+            countdownText.style.color = "#28a745"; 
+            countdownText.style.animation = 'none';
+            countdownText.offsetHeight;
+            countdownText.style.animation = 'popIn 0.3s ease-out';
+        } else {
+            clearInterval(timer);
+            overlay.style.display = 'none';
+            if(onComplete) onComplete();
+        }
+    }, 1000);
+}
 
 // 🌟 遊戲核心 🌟
 const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
 hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
 hands.onResults((results) => {
-    if (!gameState.isPlaying) return; 
     try {
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
         if (results.multiHandLandmarks) {
@@ -123,6 +143,10 @@ hands.onResults((results) => {
                 drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 2});
             }
         }
+        
+        // 🌟 修正：畫完骨架後，如果還沒倒數完，就阻斷後面的遊戲判定邏輯
+        if (!gameState.isPlaying) return; 
+        
         let currentHands = (results.multiHandLandmarks) ? results.multiHandLandmarks : [];
         let currentHandedness = (results.multiHandedness) ? results.multiHandedness : [];
         
@@ -135,8 +159,8 @@ hands.onResults((results) => {
 document.getElementById('finalConfirmStartBtn').addEventListener('click', () => {
     const levelCount = parseInt(document.getElementById('levelCount').value);
     const timeLimit = parseInt(document.getElementById('timeLimit').value); 
-    gameState.isPlaying = true;
 
+    // 初始化 UI 資訊
     const handMap = { 'right': '右手', 'left': '左手', 'both': '雙手' };
     document.getElementById('hudPlayer').innerText = `玩家：${gameState.currentUser.name}`;
     document.getElementById('hudType').innerText = `項目：${document.getElementById('settingGameTitle').innerText}`;
@@ -148,33 +172,59 @@ document.getElementById('finalConfirmStartBtn').addEventListener('click', () => 
         document.getElementById('hudDifficulty').style.display = 'block';
     } else document.getElementById('hudDifficulty').style.display = 'none';
 
-    // 🌟 控制比數字提示框顯示
     document.getElementById('hudPrompt').style.display = (gameState.gameType === 'numbers') ? 'block' : 'none';
 
-    showSection('gameArea');
-    let settings = { maxLevels: levelCount, handUsed: gameState.handUsed, timeLimit: timeLimit, difficulty: gameState.difficulty };
+    showSection('gameArea'); 
     
-    if (gameState.gameType === 'palmar') initPalmarGame(settings, canvasElement.width, canvasElement.height);
-    if (gameState.gameType === 'pincer') initPincerGame(settings, canvasElement.width, canvasElement.height);
-    if (gameState.gameType === 'numbers') initNumbersGame(settings, canvasElement.width, canvasElement.height);
+    // 🌟 設定為「非遊玩狀態」並開啟倒數遮罩
+    gameState.isPlaying = false;
+    const overlay = document.getElementById('countdownOverlay');
+    const countdownText = document.getElementById('countdownText');
+    overlay.style.display = 'flex';
+    countdownText.innerText = "相機啟動中...";
+    countdownText.style.color = "#6c757d";
+
+    // 🌟 修正：移除了重複宣告的 let settings 變數
+    let settings = { maxLevels: levelCount, handUsed: gameState.handUsed, timeLimit: timeLimit, difficulty: gameState.difficulty };
+    let cameraStarted = false; 
+    let warmUpFrames = 0; // 🌟 新增：紀錄 AI 暖身的影格數
 
     window.gameCamera = new Camera(webcam, {
         onFrame: async () => {
             if (webcam.videoWidth > 0 && canvasElement.width !== webcam.videoWidth) {
                 canvasElement.width = webcam.videoWidth; canvasElement.height = webcam.videoHeight;
-                if (gameState.gameType === 'palmar') initPalmarGame(settings, webcam.videoWidth, webcam.videoHeight);
-                if (gameState.gameType === 'pincer') initPincerGame(settings, webcam.videoWidth, webcam.videoHeight);
-                if (gameState.gameType === 'numbers') initNumbersGame(settings, webcam.videoWidth, webcam.videoHeight);
             }
-            try { if(gameState.isPlaying) await hands.send({image: webcam}); } catch (e) {}
+            
+            try { 
+                // 先讓 AI 進行運算
+                await hands.send({image: webcam}); 
+                
+                // 🌟 核心修正：等 AI 成功辨識 3 張畫面（確定暖身完畢、沒有卡頓）後，才開始倒數 321
+                if (!cameraStarted) {
+                    warmUpFrames++;
+                    if (warmUpFrames >= 3) {
+                        cameraStarted = true;
+                        startCountdown(() => {
+                            // 倒數結束，正式初始化遊戲物件並把 isPlaying 設為 true！
+                            if (gameState.gameType === 'palmar') initPalmarGame(settings, canvasElement.width, canvasElement.height);
+                            if (gameState.gameType === 'pincer') initPincerGame(settings, canvasElement.width, canvasElement.height);
+                            if (gameState.gameType === 'numbers') initNumbersGame(settings, canvasElement.width, canvasElement.height);
+                            gameState.isPlaying = true;
+                        });
+                    }
+                }
+            } catch (e) {}
         }, width: 1280, height: 720
     });
     window.gameCamera.start();
 });
 
+// ==========================================
+// 5. 報告與儲存
+// ==========================================
 window.saveGameRecord = function(records) {
     gameState.isPlaying = false; 
-    document.getElementById('hudPrompt').style.display = 'none'; // 隱藏文字框
+    document.getElementById('hudPrompt').style.display = 'none'; 
     if (window.gameCamera) window.gameCamera.stop();
     const video = document.getElementById('webcam');
     if (video.srcObject) { video.srcObject.getTracks().forEach(track => track.stop()); video.srcObject = null; }
@@ -197,5 +247,10 @@ window.saveGameRecord = function(records) {
     document.getElementById('finalPlayerId').value = gameState.currentUser.id; 
     showSection('endReportBox');
 };
-document.getElementById('saveDataBtn').addEventListener('click', () => { alert(`資料儲存成功！`); showSection('gameSelectionBox'); });
+document.getElementById('saveDataBtn').addEventListener('click', () => { 
+    const feedbackText = document.getElementById('playerFeedback').value;
+    alert(`資料儲存成功！`); 
+    document.getElementById('playerFeedback').value = ''; 
+    showSection('gameSelectionBox'); 
+});
 document.getElementById('endGameBtn').addEventListener('click', () => { if(confirm("確定要提早結束測驗嗎？")) window.saveGameRecord({ success: 0, fail: 0, details: [] }); });
