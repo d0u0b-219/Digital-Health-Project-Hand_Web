@@ -79,8 +79,10 @@ function isHandPinching(landmarks, targetFinger, w, h) {
 }
 
 function spawnBalls() {
-    const margin = 120; 
-    const ballRadius = 35; 
+    // 🌟 核心修改：大幅增加邊界安全距離 🌟
+    const marginX = 150; // 左右往內縮 150 px
+    const marginY = 120; // 上下往內縮 120 px
+    const ballRadius = 40; 
     const halfW = pincerState.canvasWidth / 2;
     const h = pincerState.canvasHeight;
     const w = pincerState.canvasWidth;
@@ -88,20 +90,35 @@ function spawnBalls() {
     let newBalls = [];
 
     function getNextPos(oldBall, minX, maxX) {
-        if (!oldBall) return { x: Math.floor(Math.random() * (maxX - minX - margin*2)) + minX + margin, y: h / 2 };
+        // 第一顆球不再死板地出現在 Y軸中間，而是在安全範圍內隨機出現
+        if (!oldBall) return { 
+            x: Math.floor(Math.random() * (maxX - minX - marginX * 2)) + minX + marginX, 
+            y: Math.floor(Math.random() * (h - marginY * 2)) + marginY 
+        };
         
         let valid = false; let newX, newY;
         let attempts = 0;
+        
         while (!valid && attempts < 50) {
             let angle = Math.random() * Math.PI * 2;
             let distance = 150 + Math.random() * 200; 
             newX = oldBall.x + Math.cos(angle) * distance;
             newY = oldBall.y + Math.sin(angle) * distance;
             
-            if (newX > minX + margin && newX < maxX - margin && newY > margin && newY < h - margin) valid = true;
+            // 嚴格限制新球必須在擴大後的安全範圍內
+            if (newX >= minX + marginX && newX <= maxX - marginX && 
+                newY >= marginY && newY <= h - marginY) {
+                valid = true;
+            }
             attempts++;
         }
-        if(!valid) return { x: (minX + maxX)/2, y: h/2 }; 
+        
+        // 如果隨機 50 次都找不到好位置，強制重置在安全範圍內的隨機點 (防呆機制)
+        if(!valid) return { 
+            x: Math.floor(Math.random() * (maxX - minX - marginX * 2)) + minX + marginX, 
+            y: Math.floor(Math.random() * (h - marginY * 2)) + marginY 
+        }; 
+        
         return { x: newX, y: newY };
     }
 
