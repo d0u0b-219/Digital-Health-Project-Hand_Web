@@ -6,16 +6,16 @@ let palmarState = {
     balls: [], currentLevel: 1, maxLevels: 10, handUsed: 'right',
     canvasWidth: 1280, canvasHeight: 720, debugDotsArray: [],
     isGameOver: false,
-    
     // 視覺過場鎖定狀態 (保留 1.2 秒讓玩家看清變紅/變綠結果)
     levelTransitioning: false, 
-    
+    needsRelease: true, // 🌟 新增這行：記錄是否需要先張開手
     timeLimit: 10, levelStartTime: 0,
     records: { success: 0, fail: 0, details: [] } 
 };
 
 let htmlAlertRelax = null;
 let htmlAlertWrongHand = null;
+let isWaitingForRelax = false;
 
 function getRawDist(p1, p2) { return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2)); }
 function isHandGrasping(landmarks) {
@@ -24,6 +24,16 @@ function isHandGrasping(landmarks) {
     let curledCount = 0;
     for (const f of fingers) { if (getRawDist(wrist, landmarks[f.tip]) < getRawDist(wrist, landmarks[f.pip])) curledCount++; }
     return curledCount >= 3;
+}
+
+// 🌟 新增：判斷是否張開手放鬆
+function isHandOpen(landmarks) {
+    const wrist = landmarks[0];
+    const fingers = [ { tip: 8, pip: 6 }, { tip: 12, pip: 10 }, { tip: 16, pip: 14 }, { tip: 20, pip: 18 } ];
+    let extendedCount = 0;
+    // 只要有 3 根以上手指的指尖距離手腕大於第二指節，就視為張開
+    for (const f of fingers) { if (getRawDist(wrist, landmarks[f.tip]) > getRawDist(wrist, landmarks[f.pip])) extendedCount++; }
+    return extendedCount >= 3;
 }
 
 function spawnBalls() {
@@ -94,11 +104,14 @@ function handleLevelComplete(isSuccess) {
             document.getElementById('hudLevel').innerText = `關卡：${palmarState.currentLevel} / ${palmarState.maxLevels}`;
             spawnBalls();
             palmarState.levelStartTime = Date.now(); // 生完球直接進入下一關倒計時，不需等待放開手掌！
+            palmarState.needsRelease = true; // 🌟 新增：要求玩家下一關先張開手
         }
     }, 1200); 
 }
 
 export function initPalmarGame(settings, canvasWidth, canvasHeight) {
+    isWaitingForRelax = false;
+    
     palmarState.maxLevels = settings.maxLevels;
     palmarState.handUsed = settings.handUsed;
     palmarState.timeLimit = settings.timeLimit || 10; 
@@ -107,7 +120,9 @@ export function initPalmarGame(settings, canvasWidth, canvasHeight) {
     palmarState.currentLevel = 1;
     palmarState.isGameOver = false; 
     palmarState.levelTransitioning = false;
+    palmarState.needsRelease = true;
     palmarState.records = { success: 0, fail: 0, details: [] };
+    window.currentGameRecords = palmarState.records; // 🌟 暴露當前紀錄給全域 (提早退出時要抓)
     
     htmlAlertRelax = document.getElementById('alertRelax');
     htmlAlertWrongHand = document.getElementById('alertWrongHand');
@@ -186,7 +201,7 @@ export function drawPalmarGame(canvasCtx) {
 export function checkPalmarLogic(inputLandmarks, multiHandedness) {
     if (palmarState.isGameOver || palmarState.levelTransitioning) return;
 
-    // 檢查是否超時
+    // 檢查是否超時(時間到計時一樣繼續走)
     const elapsed = (Date.now() - palmarState.levelStartTime) / 1000;
     const remaining = palmarState.timeLimit - elapsed;
     if (remaining <= 0) {
@@ -201,6 +216,36 @@ export function checkPalmarLogic(inputLandmarks, multiHandedness) {
     }
 
     let handsData = (inputLandmarks.length === 21 && inputLandmarks[0].x !== undefined) ? [inputLandmarks] : inputLandmarks;
+
+    // 🌟 新增：檢查是否需要放鬆 (張開手)
+    if (palmarState.needsRelease) {
+        let allHandsReady = true;
+        let validHandFound = false;
+
+        for (let i = 0; i < handsData.length; i++) {
+            const landmarks = handsData[i];
+            if (!landmarks[9]) continue;
+            validHandFound = true;
+            if (!isHandOpen(landmarks)) allHandsReady = false;
+        }
+
+        if (allHandsReady && validHandFound) {
+            palmarState.needsRelease = false;
+            if (htmlAlertRelax) htmlAlertRelax.style.display = 'none';
+        } else {
+            if (htmlAlertRelax) {
+                htmlAlertRelax.innerText = "👋 請先完全張開手放鬆！";
+                htmlAlertRelax.style.color = "#856404";
+                htmlAlertRelax.style.backgroundColor = "#fff3cd";
+                htmlAlertRelax.style.borderColor = "#ffeeba";
+                htmlAlertRelax.style.display = 'block';
+            }
+            // 阻擋抓球判定
+            palmarState.balls.forEach(ball => { ball.isTouched = false; ball.isGrasped = false; });
+            palmarState.debugDotsArray = [];
+            return; 
+        }
+    }
 
     palmarState.balls.forEach(ball => { ball.isTouched = false; ball.isGrasped = false; });
     palmarState.debugDotsArray = [];
