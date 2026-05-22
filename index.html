@@ -57,12 +57,15 @@
         /* 📱 手機與平板專屬優化 (強制橫向遮罩 + 鏡頭縮放) 📱 */
         /* ============================================== */
         
-        /* 1. 強制轉向提示 (當偵測到是直立螢幕時顯示，並隱藏遊戲) */
+        /* 1. 強制轉向提示 (當偵測到是直立螢幕，且處於需要橫屏的頁面時才顯示) */
         #rotateOverlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); color: white; z-index: 99999; flex-direction: column; justify-content: center; align-items: center; font-size: 24px; font-weight: bold; text-align: center; }
         
+        /* 🌟 核心修改：加上 body.require-landscape 條件 🌟 */
         @media (orientation: portrait) and (max-width: 768px) {
-            #rotateOverlay { display: flex; }
-            #gameArea, .box-container, #mainTitle { display: none !important; }
+            body.require-landscape #rotateOverlay { display: flex; }
+            body.require-landscape #gameArea, 
+            body.require-landscape .box-container, 
+            body.require-landscape #mainTitle { display: none !important; }
         }
 
        /* 2. 手機橫向排版 (Landscape) - 絕對不超出版面 (iPhone 終極修正版) */
