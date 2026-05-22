@@ -222,7 +222,8 @@ document.getElementById('finalConfirmStartBtn').addEventListener('click', () => 
 // ==========================================
 // 5. 報告與儲存
 // ==========================================
-window.saveGameRecord = function(records) {
+// 🌟 增加第二個參數 isEarlyExit，預設為 false
+window.saveGameRecord = function(records, isEarlyExit = false) {
     gameState.isPlaying = false; 
     document.getElementById('hudPrompt').style.display = 'none'; 
     if (window.gameCamera) window.gameCamera.stop();
@@ -230,16 +231,28 @@ window.saveGameRecord = function(records) {
     if (video.srcObject) { video.srcObject.getTracks().forEach(track => track.stop()); video.srcObject = null; }
     
     let totalSecs = 0;
-    records.details.filter(d => d.status === 'success').forEach(d => totalSecs += parseFloat(d.time));
-    let avgTime = records.success > 0 ? (totalSecs / records.success).toFixed(2) : "0.00";
+    // 防呆處理，避免提早退出時沒有成績資料報錯
+    let successCount = records ? records.success : 0;
+    let failCount = records ? records.fail : 0;
+    
+    if (records && records.details && records.details.length > 0) {
+        records.details.filter(d => d.status === 'success').forEach(d => totalSecs += parseFloat(d.time));
+    }
+    let avgTime = successCount > 0 ? (totalSecs / successCount).toFixed(2) : "0.00";
 
     const handMap = { 'right': '右手', 'left': '左手', 'both': '雙手' };
     let reportHTML = `
         <p><strong>遊戲項目：</strong> ${document.getElementById('settingGameTitle').innerText}</p>
         <p><strong>玩法：</strong> ${handMap[gameState.handUsed]} ${gameState.gameType === 'pincer' ? (gameState.difficulty==='hard'?'(困難)':'(簡單)') : ''}</p>
-        <p><strong>完成關卡：</strong> <span style="color: green;">${records.success} 關成功</span> / <span style="color: red;">${records.fail} 關失敗</span></p>
+        <p><strong>完成關卡：</strong> <span style="color: green;">${successCount} 關成功</span> / <span style="color: red;">${failCount} 關失敗</span></p>
         <p><strong>成功關卡平均時間：</strong> ${avgTime} 秒</p>
     `;
+    
+    // 🌟 如果是提早退出，就在報告加上低調的灰字備註
+    if (isEarlyExit) {
+        reportHTML += `<p style="color: #6c757d; font-size: 14px; background: #e9ecef; padding: 6px 10px; border-radius: 5px; display: inline-block; margin-top: 5px; margin-bottom: 0;">ℹ️ 備註：此紀錄為提早結束</p>`;
+    }
+
     document.getElementById('reportDataContent').innerHTML = reportHTML;
     
     gameState.currentReport = records; 
@@ -247,10 +260,17 @@ window.saveGameRecord = function(records) {
     document.getElementById('finalPlayerId').value = gameState.currentUser.id; 
     showSection('endReportBox');
 };
+
 document.getElementById('saveDataBtn').addEventListener('click', () => { 
     const feedbackText = document.getElementById('playerFeedback').value;
     alert(`資料儲存成功！`); 
     document.getElementById('playerFeedback').value = ''; 
     showSection('gameSelectionBox'); 
 });
-document.getElementById('endGameBtn').addEventListener('click', () => { if(confirm("確定要提早結束測驗嗎？")) window.saveGameRecord({ success: 0, fail: 0, details: [] }); });
+
+document.getElementById('endGameBtn').addEventListener('click', () => { 
+    if(confirm("確定要提早結束測驗嗎？")) {
+        // 🌟 傳入當下的真實紀錄 window.currentGameRecords，並且標記 isEarlyExit 為 true
+        window.saveGameRecord(window.currentGameRecords || { success: 0, fail: 0, details: [] }, true); 
+    }
+});

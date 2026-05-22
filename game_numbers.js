@@ -109,6 +109,7 @@ export function initNumbersGame(settings, canvasWidth, canvasHeight) {
     numState.isGameOver = false; 
     numState.levelTransitioning = false;
     numState.records = { success: 0, fail: 0, details: [] };
+    window.currentGameRecords = pincerState.records; // 🌟 暴露當前紀錄給全域
     
     htmlAlertRelax = document.getElementById('alertRelax');
     htmlAlertWrongHand = document.getElementById('alertWrongHand');
