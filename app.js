@@ -7,7 +7,16 @@ import { initNumbersGame, drawNumbersGame, checkNumbersLogic } from './game_numb
 
 // 🔥 加入 Firebase 模組
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, addDoc, getDoc, getDocs, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+// 💡 更新：引入 Google 登入需要的工具
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  onAuthStateChanged, 
+  signOut 
+} from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
 // 🔥 你的 Firebase 設定 (請替換成你主控台上的真實金鑰)
 const firebaseConfig = {
@@ -22,7 +31,14 @@ const firebaseConfig = {
 // 初始化 Firebase 與 Firestore
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app, "hand-game-db");
+const auth = getAuth(app);
+// 💡 建立一個 Google 登入的提供者
+const provider = new GoogleAuthProvider();
 
+// 抓取 DOM 元素
+const loginBtn = document.getElementById('btn-login');
+
+let currentUserId = null;
 let gameState = { 
     isPlaying: false, gameType: 'palmar', handUsed: 'right', difficulty: 'easy', 
     currentReport: null, currentUser: { id: '', name: '' } 
@@ -32,17 +48,15 @@ const canvasElement = document.getElementById('output_canvas');
 const canvasCtx = canvasElement.getContext('2d');
 const webcam = document.getElementById('webcam');
 
-
 window.showSection = function(sectionId) {
-    const list = ['welcomeBox', 'loginBox', 'registerBox', 'gameSelectionBox', 'gameSettingsBox', 'pincerPreviewBox', 'gameArea', 'endReportBox', 'playerHistoryBox'];
+    // 💡 確保名單中包含 'registerBox'，並移除了舊的 'loginBox'
+    const list = ['welcomeBox', 'registerBox', 'gameSelectionBox', 'gameSettingsBox', 'pincerPreviewBox', 'gameArea', 'endReportBox', 'playerHistoryBox'];
     list.forEach(id => {
         if(id === 'gameArea') document.getElementById(id).style.display = (id === sectionId) ? 'flex' : 'none';
         else document.getElementById(id).style.display = (id === sectionId) ? 'block' : 'none';
     });
     document.getElementById('mainTitle').style.display = (sectionId === 'gameArea') ? 'none' : 'block';
     
-    // 🌟 核心修改：動態控制橫屏需求標籤 🌟
-    // 如果進入「說明預覽頁」或「遊戲畫面」，就強制要求橫向；否則允許直向
     if (sectionId === 'pincerPreviewBox' || sectionId === 'gameArea') {
         document.body.classList.add('require-landscape');
     } else {
@@ -50,8 +64,44 @@ window.showSection = function(sectionId) {
     }
 };
 
-// 帳號登入與註冊邏輯
-document.getElementById('registerBtn').addEventListener('click', async () => {
+// ==========================================
+// Google 一鍵登入與狀態檢查
+// ==========================================
+loginBtn.addEventListener('click', () => {
+  signInWithPopup(auth, provider).catch((error) => {
+      console.error(error); alert("登入取消或失敗：" + error.message);
+  });
+});
+
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    currentUserId = user.uid; 
+    
+    // 檢查資料庫是否已經有這位使用者的資料
+    const userDocRef = doc(db, "users", currentUserId);
+    const userDocSnap = await getDoc(userDocRef);
+
+    if (userDocSnap.exists()) {
+        const data = userDocSnap.data();
+        gameState.currentUser = { id: data.id, name: data.name };
+        updateUserDisplays(); 
+        showSection('gameSelectionBox'); // 老玩家直接進大廳
+    } else {
+        // 新玩家，自動帶入 Google 名字並跳轉到填寫表單
+        document.getElementById('regName').value = user.displayName || ''; 
+        showSection('registerBox'); 
+    }
+  } else {
+    currentUserId = null;
+    gameState.currentUser = { id: '', name: '' };
+    showSection('welcomeBox');
+  }
+});
+
+// ==========================================
+// 儲存第一次登入的新玩家資料
+// ==========================================
+document.getElementById('saveProfileBtn').addEventListener('click', async () => {
     const regName = document.getElementById('regName').value.trim();
     const regId = document.getElementById('regId').value.trim();
     const regAge = document.getElementById('regAge').value;
@@ -60,24 +110,24 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
     const msgEl = document.getElementById('regMsg');
 
     if (!regName || !regId) return msgEl.innerText = "暱稱與 ID 為必填！";
-    msgEl.innerText = "註冊中...";
+    msgEl.innerText = "資料儲存中...";
 
     try {
-        // 檢查 ID 是否已存在
         const q = query(collection(db, "users"), where("id", "==", regId));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
-            return msgEl.innerText = "此 ID 已被使用！";
+            return msgEl.innerText = "此 ID 已被使用，請換一個！";
         }
 
-        // 寫入雲端資料庫
-        await addDoc(collection(db, "users"), {
+        // 🌟 關鍵：將玩家資料以 Google 的 UID 為檔名安全寫入雲端
+        await setDoc(doc(db, "users", currentUserId), {
             id: regId,
             name: regName,
             age: regAge,
             job: regJob,
             jobNote: regJobNote,
+            email: auth.currentUser.email,
             createdAt: serverTimestamp()
         });
 
@@ -87,56 +137,12 @@ document.getElementById('registerBtn').addEventListener('click', async () => {
         msgEl.innerText = "";
     } catch (e) {
         console.error("Error adding document: ", e);
-        msgEl.innerText = "註冊失敗，請檢查網路連線。";
+        msgEl.innerText = "儲存失敗，請檢查網路連線或資料庫權限。";
     }
 });
 
 
-document.getElementById('searchBtn').addEventListener('click', async () => {
-    const searchName = document.getElementById('searchName').value.trim();
-    const resultList = document.getElementById('resultList');
-    const searchMsg = document.getElementById('searchMsg');
-    const searchResults = document.getElementById('searchResults');
 
-    if (!searchName) return;
-    
-    // 初始化 UI 狀態
-    resultList.innerHTML = "";
-    searchMsg.innerText = "搜尋中...";
-    searchResults.style.display = 'none';
-
-    try {
-        // 🔥 向 Firestore 發送查詢，尋找 name 欄位符合輸入值的玩家
-        const q = query(collection(db, "users"), where("name", "==", searchName));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-            searchMsg.innerText = "找不到此暱稱，請確認輸入是否正確。";
-        } else {
-            searchMsg.innerText = "";
-            searchResults.style.display = 'block';
-            
-            // 遍歷所有符合的結果並渲染到畫面上
-            querySnapshot.forEach((doc) => {
-                const user = doc.data(); // 取出該筆文件的資料
-                const item = document.createElement('div'); 
-                item.className = 'search-result-item'; 
-                item.innerHTML = `<span>${user.name}</span><span style="color:#666;">ID: ${user.id}</span>`;
-                
-                // 點擊後綁定使用者狀態並進入遊戲大廳
-                item.addEventListener('click', () => { 
-                    gameState.currentUser = { id: user.id, name: user.name }; 
-                    updateUserDisplays(); 
-                    showSection('gameSelectionBox'); 
-                });
-                resultList.appendChild(item);
-            });
-        }
-    } catch (e) {
-        console.error("Error searching user: ", e);
-        searchMsg.innerText = "搜尋失敗，請檢查網路連線。";
-    }
-});
 
 // 綁定歷史紀錄按鈕
 document.getElementById('viewHistoryBtn').addEventListener('click', async () => {
@@ -243,7 +249,10 @@ function updateUserDisplays() {
     document.querySelectorAll('.displayPlayerName').forEach(el => el.innerText = gameState.currentUser.name);
     document.querySelectorAll('.displayPlayerId').forEach(el => el.innerText = gameState.currentUser.id);
 }
-document.getElementById('logoutBtnFromSelect').addEventListener('click', () => location.reload());
+
+document.getElementById('logoutBtnFromSelect').addEventListener('click', () => {
+    signOut(auth).then(() => { alert("已成功登出！"); });
+});
 
 window.goToSettings = function(type) {
     gameState.gameType = type;
