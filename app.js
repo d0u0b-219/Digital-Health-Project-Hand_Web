@@ -11,7 +11,7 @@ import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, serve
 
 // 🔥 你的 Firebase 設定 (請替換成你主控台上的真實金鑰)
 const firebaseConfig = {
-  apiKey: "AIzaSyBWs8l72EnqbpDLwJryaqXCygEMYiUz2Ic",
+  apiKey: "AIzaSyBOgugClwyODc9OFL_fQSNA5eYCb3H3sc8",
   authDomain: "digital-health-project-hand.firebaseapp.com",
   projectId: "digital-health-project-hand",
   storageBucket: "digital-health-project-hand.firebasestorage.app",
