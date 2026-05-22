@@ -7,6 +7,10 @@ let numState = {
     handUsed: 'right', 
     targetLeft: 0, targetRight: 0, // 目標數字 0-5
     
+    // 🌟 新增：記錄畫布大小與當局結果，用來在正中間畫圖
+    canvasWidth: 1280, canvasHeight: 720,
+    lastResult: null,
+
     timeLimit: 10, levelStartTime: 0, isGameOver: false,
     levelTransitioning: false, 
     records: { success: 0, fail: 0, details: [] } 
@@ -60,7 +64,11 @@ function spawnTargets() {
 }
 
 function handleLevelComplete(isSuccess) {
-    numState.levelTransitioning = true; 
+    numState.levelTransitioning = true;
+
+    // 🌟 記錄這一關是成功還是失敗，用來決定正中央要畫什麼
+    numState.lastResult = isSuccess ? 'success' : 'fail';
+    
     let timeTaken = ((Date.now() - numState.levelStartTime) / 1000).toFixed(2);
     
     if (isSuccess) {
@@ -102,13 +110,18 @@ function handleLevelComplete(isSuccess) {
 }
 
 export function initNumbersGame(settings, canvasWidth, canvasHeight) {
+    // 🌟 補上這兩行，確保不同手機/平板的鏡頭解析度下，字牌都能完美置中！
+    numState.canvasWidth = canvasWidth;
+    numState.canvasHeight = canvasHeight;
     numState.maxLevels = settings.maxLevels;
     numState.handUsed = settings.handUsed;
     numState.timeLimit = settings.timeLimit || 10; 
     numState.currentLevel = 1;
     numState.isGameOver = false; 
     numState.levelTransitioning = false;
+    numState.lastResult = null; // 初始化結果狀態
     numState.records = { success: 0, fail: 0, details: [] };
+    window.currentGameRecords = numState.records; // 🌟 暴露當前紀錄給全域
     
     htmlAlertRelax = document.getElementById('alertRelax');
     htmlAlertWrongHand = document.getElementById('alertWrongHand');
@@ -133,8 +146,47 @@ export function drawNumbersGame(canvasCtx) {
     if (timeDisplay && !numState.isGameOver) {
         timeDisplay.innerText = `⏳ 剩餘時間：${Math.ceil(remaining).toString().padStart(2, '0')} 秒`;
     }
-    
     // 比數字沒有球，所以不用畫東西在 Canvas 上！全靠 HTML 的框框。
+
+    // 🌟 新增：在關卡過場(1.2秒內)時，於畫面正中央畫出過關/失敗提示 🌟
+    if (numState.levelTransitioning && numState.lastResult) {
+        canvasCtx.save();
+        
+        // 將畫筆移動到畫面正中心
+        canvasCtx.translate(numState.canvasWidth / 2, numState.canvasHeight / 2);
+        // 水平翻轉畫布，抵銷鏡頭的鏡像效果
+        canvasCtx.scale(-1, 1);
+        
+        if (numState.lastResult === 'success') {
+            // 畫綠色底色框
+            canvasCtx.fillStyle = "rgba(40, 167, 69, 0.9)";
+            canvasCtx.beginPath();
+            canvasCtx.roundRect(-160, -60, 320, 120, 20); // 寬320 高120 圓角20
+            canvasCtx.fill();
+            
+            // 畫白色文字
+            canvasCtx.fillStyle = "#ffffff";
+            canvasCtx.font = "bold 65px sans-serif";
+            canvasCtx.textAlign = "center";
+            canvasCtx.textBaseline = "middle";
+            canvasCtx.fillText("✅ 通過！", 0, 0);
+        } else if (numState.lastResult === 'fail') {
+            // 畫紅色底色框
+            canvasCtx.fillStyle = "rgba(220, 53, 69, 0.9)";
+            canvasCtx.beginPath();
+            canvasCtx.roundRect(-160, -60, 320, 120, 20);
+            canvasCtx.fill();
+            
+            // 畫白色文字
+            canvasCtx.fillStyle = "#ffffff";
+            canvasCtx.font = "bold 65px sans-serif";
+            canvasCtx.textAlign = "center";
+            canvasCtx.textBaseline = "middle";
+            canvasCtx.fillText("💥 失敗！", 0, 0);
+        }
+        
+        canvasCtx.restore();
+    }
 }
 
 export function checkNumbersLogic(inputLandmarks, multiHandedness) {

@@ -202,6 +202,7 @@ export function initPincerGame(settings, canvasWidth, canvasHeight) {
     pincerState.levelTransitioning = false;
     pincerState.needsRelease = true; 
     pincerState.records = { success: 0, fail: 0, details: [] };
+    window.currentGameRecords = pincerState.records; // 🌟 暴露當前紀錄給全域
     pincerState.balls = []; 
     
     htmlAlertRelax = document.getElementById('alertRelax');

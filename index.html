@@ -57,55 +57,67 @@
         /* 📱 手機與平板專屬優化 (強制橫向遮罩 + 鏡頭縮放) 📱 */
         /* ============================================== */
         
-        /* 1. 強制轉向提示 (當偵測到是直立螢幕時顯示，並隱藏遊戲) */
+        /* 1. 強制轉向提示 (當偵測到是直立螢幕，且處於需要橫屏的頁面時才顯示) */
         #rotateOverlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); color: white; z-index: 99999; flex-direction: column; justify-content: center; align-items: center; font-size: 24px; font-weight: bold; text-align: center; }
         
+        /* 🌟 核心修改：加上 body.require-landscape 條件 🌟 */
         @media (orientation: portrait) and (max-width: 768px) {
-            #rotateOverlay { display: flex; }
-            #gameArea, .box-container, #mainTitle { display: none !important; }
+            body.require-landscape #rotateOverlay { display: flex; }
+            body.require-landscape #gameArea, 
+            body.require-landscape .box-container, 
+            body.require-landscape #mainTitle { display: none !important; }
         }
 
-        /* 2. 手機橫向排版 (Landscape) - 絕對不超出版面 */
+       /* 2. 手機橫向排版 (Landscape) - 絕對不超出版面 (iPhone 終極修正版) */
         @media (orientation: landscape) and (max-height: 600px) {
             #gameArea { 
                 flex-direction: row; 
                 padding: 10px; 
-                gap: 15px; 
+                gap: 10px; 
                 align-items: center; /* 垂直置中 */
                 justify-content: center;
+                height: 100vh;
+                height: 100dvh; /* 🌟 針對 iOS Safari 網址列自動伸縮的神奇語法 */
+                box-sizing: border-box;
+                overflow: hidden; /* 鎖死外框，禁止畫面被意外撐開滑動 */
             }
             
-            /* 🌟 核心修正：將鏡頭高度鎖定在螢幕的 90%，寬度自適應，絕對不會出界 */
             .video-container { 
-                height: 90vh; 
+                /* 🌟 核心修正：雙重限制，確保鏡頭絕對不會超出螢幕 */
+                height: 85vh; 
+                max-height: 85dvh;
                 width: auto; 
+                max-width: 70vw; /* 強制保留 30% 螢幕空間給右側面板 */
                 aspect-ratio: 16 / 9; 
-                flex-shrink: 0;
-                border-width: 4px;
+                flex-shrink: 1; /* 允許畫面被安全擠壓 */
+                border-width: 3px;
                 border-radius: 8px;
             }
             
-            /* 縮小浮動提示框的大小，確保不會擋到臉 */
-            #hudTime { font-size: 16px; bottom: 10px; left: 10px; padding: 6px 12px; }
-            #hudPrompt { font-size: 22px; top: 10px; padding: 6px 15px; }
-            .game-overlay { bottom: 10px; right: 10px; }
-            .alert-text { font-size: 16px; padding: 6px 12px; margin-top: 5px; }
+            /* 🌟 縮小「比數字」的題目框，確保在 iPhone 螢幕上絕對看得見 */
+            #hudPrompt { font-size: 16px !important; top: 8px; padding: 6px 15px; border-width: 2px; }
+            
+            /* 縮小浮動提示框的大小 */
+            #hudTime { font-size: 14px; bottom: 8px; left: 8px; padding: 5px 10px; border-width: 2px; }
+            .game-overlay { bottom: 8px; right: 8px; }
+            .alert-text { font-size: 14px; padding: 5px 10px; margin-top: 5px; border-width: 2px; }
             
             /* 說明預覽框內的文字縮小 */
-            .preview-instruction-box, .preview-instruction-box-easy, .preview-instruction-box-number { font-size: 14px; padding: 5px 10px; }
-            .mock-game-frame p { font-size: 14px !important; }
+            .preview-instruction-box, .preview-instruction-box-easy, .preview-instruction-box-number { font-size: 12px; padding: 4px 8px; }
+            .mock-game-frame p { font-size: 12px !important; }
             
-            /* 將右側資訊欄縮小，並讓它可以獨立滾動 */
+            /* 將右側資訊欄縮小並固定寬度 */
             .side-panel { 
-                width: auto;
-                max-width: 250px;
-                height: 90vh;
+                width: 25vw;
+                min-width: 140px;
+                height: 85vh;
+                max-height: 85dvh;
                 overflow-y: auto; 
                 justify-content: flex-start;
             }
-            #gameHUD { padding: 10px; margin-top: 0; }
-            .game-info-line { font-size: 14px; margin: 4px 0; }
-            .end-btn { padding: 10px; font-size: 16px; margin-top: 15px; width: 100%; }
+            #gameHUD { padding: 8px; margin-top: 0; }
+            .game-info-line { font-size: 13px; margin: 4px 0; }
+            .end-btn { padding: 8px; font-size: 14px; margin-top: 10px; width: 100%; }
         }
 
         /* ============================================== */
@@ -129,9 +141,14 @@
             80% { transform: scale(1.1); opacity: 1; }
             100% { transform: scale(1); opacity: 1; }
         }
-        
     </style>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+    </script>
 </head>
+
 <body>
     <div id="rotateOverlay">
         <div style="font-size: 60px; margin-bottom: 20px;">📱🔄</div>
@@ -151,7 +168,7 @@
         <h2 style="text-align: center; margin-top: 0;">舊玩家登入</h2>
         <div class="form-group">
             <label>請輸入您的暱稱 (玩家代稱)</label>
-            <input type="text" id="searchName" placeholder="例如: 林先生">
+            <input type="text" id="searchName" placeholder="皮卡丘">
         </div>
         <button id="searchBtn" class="btn-primary">搜尋帳號</button>
         <p id="searchMsg" style="text-align: center; font-weight: bold; color: red;"></p>
@@ -169,18 +186,18 @@
         <h2 style="text-align: center; margin-top: 0;">註冊新玩家</h2>
         <div class="form-group">
             <label>玩家暱稱 (顯示名稱) <span style="color:red;">*</span></label>
-            <input type="text" id="regName" placeholder="例如: 王大明" required>
+            <input type="text" id="regName" placeholder="皮卡丘" required>
         </div>
         <div class="form-group">
-            <label>系統 ID (請自行輸入英文-數字，用於辨識)  <span style="color:red;">*</span></label>
-            <input type="text" id="regId" placeholder="例如: P-001" required>
+            <label>ID (英文-數字)  <span style="color:red;">*</span></label>
+            <input type="text" id="regId" placeholder="pika-321" required>
         </div>
         <div class="form-group">
             <label>年齡</label>
             <input type="number" id="regAge" min="1" max="120">
         </div>
         <div class="form-group">
-            <label>職業</label>
+            <label>身分</label>
             <select id="regJob">
                 <option value="">請選擇...</option>
                 <option value="學生">學生</option>
@@ -190,8 +207,8 @@
             </select>
         
         <div class="form-group">
-            <label>補充說明</label>
-            <input type="text" id="regJobNote" placeholder="如：校隊 / 系隊 / 運動員-籃球 等 (選填)">
+            <label>補充說明 (職業類別/運動習慣)</label>
+            <input type="text" id="regJobNote" placeholder="學生 / 籃球系隊 ；  工程師 / 每周打網球">
         </div>
         
         </div>
@@ -209,7 +226,17 @@
         <button class="game-card-btn" style="background-color: #913fab;" onclick="goToSettings('numbers')">✌️比數字 (Number Matching)</button>
         <button class="game-card-btn" style="background-color: #28a745;" onclick="goToSettings('pincer')">🤏捏手指! (Pincer Grasp)</button>
         <button class="game-card-btn" style="background-color: #17a2b8;" onclick="goToSettings('palmar')">👊握拳!! (Palmar Grasp)</button>
-        <hr><button class="btn-secondary" id="logoutBtnFromSelect">登出</button>
+        <button class="btn-primary" id="viewHistoryBtn" style="margin-bottom: 15px; background-color: #6c757d;">📊 查看我的遊戲紀錄</button>
+        <hr><button class="btn-secondary" id="logoutBtnFromSelect" style="width: 50%; display: block; margin: 15px auto 0;">登出</button>
+    </div>
+
+    <div id="playerHistoryBox" class="box-container" style="display: none; max-width: 600px;">
+        <h2 style="text-align: center; margin-top: 0;">📊 我的遊戲歷程</h2>
+        <p style="text-align: center; color: #666;">玩家：<span class="displayPlayerName" style="font-weight: bold; color: #28a745;"></span></p>
+        <div id="historyList" style="max-height: 400px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #dee2e6;">
+            <p style="text-align: center; color: #999;">載入中...</p>
+        </div>
+        <button class="btn-secondary" onclick="showSection('gameSelectionBox')" style="margin-top: 20px;">返回大廳</button>
     </div>
 
     <div id="gameSettingsBox" class="box-container" style="display: none;">
@@ -261,7 +288,7 @@
         </div>
 
         <div id="palmarGuide" style="display: none; background: #e2e3e5; padding: 15px; border-radius: 8px;">
-            <p style="font-weight: bold; margin-top: 0;">👊握拳!! (Palmar Grasp) 說明：</p><p>請在球體出現時，將手掌移至球心並做出「完全握拳👊✊🤜🤛」</p>
+            <p style="font-weight: bold; margin-top: 0;">👊握拳!! (Palmar Grasp) 說明：</p><p>去抓球!!  將手掌移至球心🟡並抓它「完全握拳👊✊🤜🤛」</p>
         </div>
 
         <button id="finalConfirmStartBtn" class="game-card-btn" style="background-color: #28a745; margin-top: 25px;">我懂了，開啟鏡頭！</button>
@@ -271,7 +298,13 @@
     <div id="endReportBox" class="box-container" style="display: none;">
         <h2 style="text-align: center; margin-top: 0;">📋 遊戲報告</h2>
         <div class="report-data" id="reportDataContent"></div>
-        <div style="background: #f8d7da; padding: 15px; border-radius: 8px; margin-bottom: 15px;"><p style="margin-top: 0; color: #721c24; font-weight: bold;">⚠️ 確認儲存對象：</p><div class="form-group"><input type="text" id="finalPlayerName" style="border: 2px solid #dc3545;"></div><div class="form-group"><input type="text" id="finalPlayerId" style="border: 2px solid #dc3545;"></div></div>
+
+        <div style="background: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <p style="margin-top: 0; color: #555; font-weight: bold;">👤 確認儲存對象：</p>
+            <div class="form-group"><input type="text" id="finalPlayerName" style="border: 1px solid #ccc; color: #333;"></div>
+            <div class="form-group"><input type="text" id="finalPlayerId" style="border: 1px solid #ccc; color: #333;"></div>
+        </div>
+
         <div class="form-group" style="margin-bottom: 20px;">
             <label style="font-weight: bold; color: #333;">💬 想對我們說的話 (選填)：</label>
             <textarea id="playerFeedback" rows="3" placeholder="歡迎留下您的遊戲心得或建議..." style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; resize: vertical; font-family: inherit; margin-top: 5px;"></textarea>
