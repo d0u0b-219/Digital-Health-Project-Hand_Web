@@ -23,6 +23,14 @@ window.showSection = function(sectionId) {
         else document.getElementById(id).style.display = (id === sectionId) ? 'block' : 'none';
     });
     document.getElementById('mainTitle').style.display = (sectionId === 'gameArea') ? 'none' : 'block';
+    
+    // 🌟 核心修改：動態控制橫屏需求標籤 🌟
+    // 如果進入「說明預覽頁」或「遊戲畫面」，就強制要求橫向；否則允許直向
+    if (sectionId === 'pincerPreviewBox' || sectionId === 'gameArea') {
+        document.body.classList.add('require-landscape');
+    } else {
+        document.body.classList.remove('require-landscape');
+    }
 };
 
 // 帳號登入與註冊邏輯
