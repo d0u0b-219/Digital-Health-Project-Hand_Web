@@ -453,8 +453,6 @@ window.saveGameRecord = function(records, isEarlyExit = false) {
     document.getElementById('reportDataContent').innerHTML = reportHTML;
     
     gameState.currentReport = records; 
-    document.getElementById('finalPlayerName').value = gameState.currentUser.name;
-    document.getElementById('finalPlayerId').value = gameState.currentUser.id; 
     showSection('endReportBox');
 };
 
