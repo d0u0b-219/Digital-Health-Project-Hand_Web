@@ -159,38 +159,25 @@
     
     <div id="welcomeBox" class="box-container">
         <h2 style="text-align: center; margin-top: 0;">歡迎使用</h2>
-        <p style="text-align: center; color: #666; margin-bottom: 25px;">請選擇您的身分進入系統</p>
-        <button class="btn-primary" onclick="showSection('loginBox')">👋 舊玩家登入 (輸入暱稱)</button>
-        <button style="background-color: #17a2b8; margin-top: 15px;" onclick="showSection('registerBox')">✨ 註冊新玩家</button>
-    </div>
-
-    <div id="loginBox" class="box-container" style="display: none;">
-        <h2 style="text-align: center; margin-top: 0;">舊玩家登入</h2>
-        <div class="form-group">
-            <label>請輸入您的暱稱 (玩家代稱)</label>
-            <input type="text" id="searchName" placeholder="皮卡丘">
-        </div>
-        <button id="searchBtn" class="btn-primary">搜尋帳號</button>
-        <p id="searchMsg" style="text-align: center; font-weight: bold; color: red;"></p>
+        <p style="text-align: center; color: #666; margin-bottom: 25px;">請使用 Google 帳號登入系統</p>
         
-        <div id="searchResults" style="display: none; margin-top: 15px;">
-            <p style="margin-bottom: 5px; color: #666;">找到以下玩家，請點擊您的帳號：</p>
-            <div id="resultList"></div>
-        </div>
-
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
-        <button class="btn-secondary" onclick="showSection('welcomeBox')">返回上一頁</button>
+        <button id="btn-login" class="game-card-btn" style="background-color: #4285F4; color: white; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>
+            用 Google 帳號一鍵登入
+        </button>
     </div>
 
-    <div id="registerBox" class="box-container" style="display: none;">
-        <h2 style="text-align: center; margin-top: 0;">註冊新玩家</h2>
+<div id="registerBox" class="box-container" style="display: none;">
+        <h2 style="text-align: center; margin-top: 0;">建立遊戲檔案</h2>
+        <p style="text-align: center; color: #666;">這是第一次登入，填資料!</p>
+        
         <div class="form-group">
             <label>玩家暱稱 (顯示名稱) <span style="color:red;">*</span></label>
             <input type="text" id="regName" placeholder="皮卡丘" required>
         </div>
         <div class="form-group">
-            <label>ID (英文-數字)  <span style="color:red;">*</span></label>
-            <input type="text" id="regId" placeholder="pika-321" required>
+            <label>玩家 ID (英文-數字) <span style="color:red;">*</span></label>
+            <input type="text" id="regId" placeholder="例如：pika-321" required>
         </div>
         <div class="form-group">
             <label>年齡</label>
@@ -205,19 +192,17 @@
                 <option value="退休">退休</option>
                 <option value="其他">其他</option>
             </select>
-        
+        </div>
         <div class="form-group">
             <label>補充說明 (職業類別/運動習慣)</label>
             <input type="text" id="regJobNote" placeholder="學生 / 籃球系隊 ；  工程師 / 每周打網球">
         </div>
         
-        </div>
-        <button id="registerBtn">註冊並進入遊戲大廳</button>
+        <button id="saveProfileBtn" class="btn-primary">儲存資料並進入遊戲</button>
         <p id="regMsg" style="text-align: center; font-weight: bold; color: red;"></p>
-        
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
-        <button class="btn-secondary" onclick="showSection('welcomeBox')">返回上一頁</button>
     </div>
+
+
 
     <div id="gameSelectionBox" class="box-container" style="display: none;">
         <h2 style="text-align: center; margin-top: 0;">選擇遊戲項目</h2>
