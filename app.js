@@ -222,6 +222,7 @@ document.getElementById('saveDataBtn').addEventListener('click', async () => {
             gameType: gameState.gameType,
             handUsed: gameState.handUsed,
             difficulty: gameState.difficulty,
+            timeLimit: parseInt(document.getElementById('timeLimit').value) || 10,
             successCount: gameState.currentReport ? gameState.currentReport.success : 0,
             failCount: gameState.currentReport ? gameState.currentReport.fail : 0,
             details: gameState.currentReport ? gameState.currentReport.details : [],

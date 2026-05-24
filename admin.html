@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>遊戲數據分析中心</title>
+
+    <script>
+        const ADMIN_PASSWORD = "1234"; // 密碼可以隨時在這裡修改
+        
+        let userInput = prompt("🔒 輸入密碼：");
+        
+        if (userInput !== ADMIN_PASSWORD) {
+            alert("密碼錯誤，拒絕存取！將返回遊戲大廳。");
+            window.location.href = "index.html"; // 強制踢回玩家首頁
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
+        .dashboard-container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        .player-list { background: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        select { padding: 10px; font-size: 16px; border-radius: 5px; border: 1px solid #ccc; width: 300px; }
+        .export-btn { background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; float: right; transition: background 0.2s; }
+        .export-btn:hover { background-color: #218838; }
+        
+        /* 歷史紀錄卡片樣式 */
+        .history-card { background: #fff; border: 1px solid #dee2e6; border-left: 6px solid #6c757d; padding: 15px; margin-bottom: 15px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .card-header { display: flex; justify-content: space-between; font-size: 14px; color: #666; margin-bottom: 8px; border-bottom: 1px dashed #eee; padding-bottom: 5px; }
+        .card-title { font-size: 18px; font-weight: bold; color: #333; margin-bottom: 8px; }
+        .badge { display: inline-block; padding: 3px 8px; font-size: 12px; border-radius: 4px; font-weight: bold; margin-right: 5px; background: #e9ecef; color: #495057; }
+        .badge-device { background-color: #cce5ff; color: #004085; }
+        .detail-timeline { font-family: monospace; font-size: 13px; background: #f8f9fa; padding: 8px; border-radius: 4px; margin-top: 8px; color: #555; overflow-x: auto; white-space: nowrap; }
+        
+        /* 圖表收合與按鈕樣式 */
+        .chart-collapse { display: none; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #dee2e6; height: 300px; position: relative; }
+        .chart-collapse.show { display: block; }
+        .toggle-btn { margin-top: 12px; background-color: #e9ecef; color: #495057; border: 1px solid #ced4da; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; transition: background 0.2s; }
+        .toggle-btn:hover { background-color: #dde2e6; }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <button class="export-btn" id="exportCsvBtn">📥 匯出全資料庫 (CSV)</button>
+        <h1>📈 遊戲數據分析中心</h1>
+        
+        <div class="player-list">
+            <label style="font-weight: bold; margin-right: 10px;">👤 選擇玩家：</label>
+            <select id="playerSelect">
+                <option value="">載入名單中...</option>
+            </select>
+        </div>
+
+        <div id="dataView" style="display: none;">
+            <h3 id="playerInfo"></h3>
+            
+            <div style="margin-top: 20px;">
+                <h3 style="color: #2c3e50; border-left: 4px solid #007bff; padding-left: 10px;">📜 歷次訓練紀錄明細</h3>
+                <div id="historyRecordsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBWs8l72EnqbpDLwJryaqXCygEMYiUz2Ic",
+            authDomain: "digital-health-project-hand.firebaseapp.com",
+            projectId: "digital-health-project-hand",
+            storageBucket: "digital-health-project-hand.firebasestorage.app",
+            messagingSenderId: "22203538668",
+            appId: "1:22203538668:web:847a5e212fa9678d0959c9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app, "hand-game-db");
+
+        const playerSelect = document.getElementById('playerSelect');
+        const dataView = document.getElementById('dataView');
+        const playerInfo = document.getElementById('playerInfo');
+        const historyRecordsList = document.getElementById('historyRecordsList');
+        
+        // 用來存放所有的 Chart 實例，以便在重新載入時清理記憶體
+        let chartInstances = {};
+
+        // ==========================================
+        // 1. 動態載入玩家名單
+        // ==========================================
+        async function fetchPlayerList() {
+            try {
+                const querySnapshot = await getDocs(collection(db, "users"));
+                playerSelect.innerHTML = '<option value="">-- 請選擇玩家 --</option>';
+                
+                if (querySnapshot.empty) {
+                    playerSelect.innerHTML = '<option value="">❌ 目前沒有玩家資料</option>';
+                    return;
+                }
+
+                querySnapshot.forEach((doc) => {
+                    const user = doc.data();
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = `👤 ${user.name} (ID: ${user.id})`; 
+                    option.dataset.name = user.name;
+                    option.dataset.age = user.age || "未填";
+                    option.dataset.job = user.job || "未填";
+                    option.dataset.note = user.jobNote || "無";
+                    playerSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error(error);
+                playerSelect.innerHTML = '<option value="">❌ 載入失敗，請檢查網路</option>';
+            }
+        }
+
+        // ==========================================
+        // 2. 監聽玩家選單切換
+        // ==========================================
+        playerSelect.addEventListener('change', async (e) => {
+            const selectedOption = e.target.selectedOptions[0];
+            const userId = e.target.value;
+
+            if (!userId) { dataView.style.display = 'none'; return; }
+
+            playerInfo.innerHTML = `
+                👤 當前玩家：<span style="color: #007bff;">${selectedOption.dataset.name}</span> 
+                <span style="font-size: 15px; color: #666; font-weight: normal; margin-left: 15px;">
+                    (ID: ${userId} ｜ 年齡: ${selectedOption.dataset.age} 歲 ｜ 身分: ${selectedOption.dataset.job} ｜ 備註: ${selectedOption.dataset.note})
+                </span>
+            `;
+            dataView.style.display = 'block';
+            
+            await loadPlayerRecords(userId);
+        });
+
+        // ==========================================
+        // 3. 撈取並渲染該玩家「每一筆」歷史明細
+        // ==========================================
+        async function loadPlayerRecords(userId) {
+            try {
+                historyRecordsList.innerHTML = '<p style="color:#888;">紀錄讀取中...</p>';
+                
+                // 清理舊的圖表記憶體
+                Object.values(chartInstances).forEach(chart => chart.destroy());
+                chartInstances = {};
+
+                const q = query(
+                    collection(db, "game_records"),
+                    where("userId", "==", userId),
+                    orderBy("timestamp", "desc")
+                );
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    historyRecordsList.innerHTML = '<p style="color:#dc3545; font-weight:bold;">⚠️ 該玩家目前無任何訓練數據。</p>';
+                    return;
+                }
+
+                historyRecordsList.innerHTML = '';
+
+                querySnapshot.forEach((doc) => {
+                    const record = doc.data();
+                    const recordId = doc.id;
+
+                    // A. 計算平均成功時間
+                    let totalSecs = 0;
+                    let successCount = record.successCount || 0;
+                    let failCount = record.failCount || 0;
+                    if (record.details && record.details.length > 0) {
+                        record.details.filter(d => d.status === 'success').forEach(d => totalSecs += parseFloat(d.time));
+                    }
+                    let avgTime = successCount > 0 ? (totalSecs / successCount).toFixed(2) : "0.00";
+
+                    // B. 解析時間戳記
+                    const dateStr = record.timestamp ? record.timestamp.toDate().toLocaleString('zh-TW') : '未知時間';
+                    
+                    // C. 遊戲項目翻譯轉換
+                    const gameNameMap = { 'palmar': '👊 握拳 (Palmar)', 'pincer': '🤏 捏手指 (Pincer)', 'numbers': '✌️ 比數字 (Numbers)' };
+                    const gameTitle = gameNameMap[record.gameType] || record.gameType;
+                    const handStr = { 'right': '右手', 'left': '左手', 'both': '雙手' }[record.handUsed] || record.handUsed;
+
+                    // D. 串接每次/每關的個別秒數與狀態
+                    let detailsHTML = "";
+                    if(record.details && record.details.length > 0) {
+                        record.details.forEach(d => {
+                            const statusIcon = d.status === 'success' ? '✅' : '❌';
+                            const timeText = d.status === 'success' ? `${d.time}秒` : '超時';
+                            detailsHTML += `[關卡${d.level}: ${statusIcon} ${timeText}]  `;
+                        });
+                    } else { detailsHTML = "無關卡細節資料"; }
+
+                    // E. 建立卡片元件 (內部包含按鈕與隱藏的 Canvas)
+                    const canvasId = `chart-${recordId}`;
+                    const card = document.createElement('div');
+                    card.className = `history-card`;
+                    
+                    card.innerHTML = `
+                        <div class="card-header">
+                            <div>📅 測驗時間：<strong>${dateStr}</strong></div>
+                            <div><span class="badge badge-device">📱 裝置：${record.deviceType || '未知'}</span></div>
+                        </div>
+                        <div class="card-title">${gameTitle} - <span style="color:#007bff;">${handStr}</span></div>
+                        <div style="font-size: 15px; line-height: 1.6; color: #444;">
+                            <div>⚙️ <strong>遊戲設定：</strong> 總關卡數: <span style="font-weight:bold;">${record.details ? record.details.length : 0}</span> 關 ｜ 每關限時: <span style="color:#007bff; font-weight:bold;">${record.timeLimit || 10}</span> 秒 ｜ 難度: ${record.difficulty === 'hard' ? '🔴 困難版' : '🟢 簡單版'}</div>
+                            <div>📊 <strong>測驗報告：</strong> 成功: <span style="color:green; font-weight:bold;">${successCount}</span> 關 ｜ 失敗: <span style="color:red; font-weight:bold;">${failCount}</span> 關 ｜ 成功關卡平均時間：<span style="color:#28a745; font-weight:bold; font-size:16px;">${avgTime}</span> 秒</div>
+                            <div class="detail-timeline">⏱️ <strong>歷次各關秒數：</strong><br>${detailsHTML}</div>
+                            <div style="margin-top:8px; background:#fffbf0; padding:6px; border-radius:4px; font-style:italic; color:#666; border: 1px solid #ffeeba;">
+                                💬 <strong>玩家留言：</strong> ${record.feedback ? record.feedback : '<span style="color:#bbb;">（未填寫留言）</span>'}
+                            </div>
+                        </div>
+                        <button class="toggle-btn" id="btn-${recordId}">📈 展開折線圖</button>
+                        <div class="chart-collapse" id="collapse-${recordId}">
+                            <canvas id="${canvasId}"></canvas>
+                        </div>
+                    `;
+
+                    historyRecordsList.appendChild(card);
+
+                    // F. 綁定按鈕點擊事件 (懶加載折線圖)
+                    const toggleBtn = document.getElementById(`btn-${recordId}`);
+                    const collapseDiv = document.getElementById(`collapse-${recordId}`);
+                    let isChartRendered = false; // 紀錄這張卡片的圖表畫過了沒
+
+                    toggleBtn.addEventListener('click', () => {
+                        collapseDiv.classList.toggle('show');
+                        
+                        if (collapseDiv.classList.contains('show')) {
+                            toggleBtn.innerText = "📉 收合折線圖";
+                            // 只有在第一次展開時，才消耗資源畫圖
+                            if (!isChartRendered) {
+                                renderChart(record, canvasId);
+                                isChartRendered = true;
+                            }
+                        } else {
+                            toggleBtn.innerText = "📈 展開折線圖";
+                        }
+                    });
+                });
+
+            } catch (error) {
+                console.error(error);
+                historyRecordsList.innerHTML = '<p style="color:red;">讀取資料失敗。</p>';
+            }
+        }
+
+        // ==========================================
+        // 4. 核心渲染圖表函式 (Chart.js)
+        // ==========================================
+        function renderChart(record, canvasId) {
+            const labels = [];
+            const times = [];
+            const pointColors = []; 
+            
+            if (record.details && record.details.length > 0) {
+                record.details.forEach(detail => {
+                    labels.push(`第 ${detail.level} 關`);
+                    if (detail.status === 'success') {
+                        times.push(parseFloat(detail.time));
+                        pointColors.push('rgb(75, 192, 192)'); 
+                    } else {
+                        times.push(10); 
+                        pointColors.push('rgb(220, 53, 69)');  
+                    }
+                });
+            }
+
+            const ctx = document.getElementById(canvasId).getContext('2d');
+
+            // 將產生的實例存入字典中，方便之後清除
+            chartInstances[canvasId] = new Chart(ctx, {
+                type: 'line', 
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `關卡反應時間分析`,
+                        data: times, 
+                        borderColor: 'rgb(0, 123, 255)',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        borderWidth: 2.5,
+                        pointBackgroundColor: pointColors, 
+                        pointRadius: 6,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, max: 10, title: { display: true, text: '反應秒數', font: { weight: 'bold' } } },
+                        x: { title: { display: true, text: '關卡進度', font: { weight: 'bold' } } }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const detail = record.details[context.dataIndex];
+                                    if (detail && detail.status === 'fail') return '❌ 超時失敗 (≥10秒)';
+                                    return `✅ 反應時間: ${context.parsed.y} 秒`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // 5. 資料分析必備：匯出全資料庫紀錄為 CSV
+        // ==========================================
+        document.getElementById('exportCsvBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('exportCsvBtn');
+            btn.innerText = "⚡ 正在撈取全雲端數據...";
+            btn.disabled = true;
+
+            try {
+                const usersSnapshot = await getDocs(collection(db, "users"));
+                const userMap = {};
+                usersSnapshot.forEach(doc => {
+                    const u = doc.data();
+                    userMap[u.id] = { name: u.name, age: u.age, job: u.job };
+                });
+
+                const recordsSnapshot = await getDocs(collection(db, "game_records"));
+                
+                if(recordsSnapshot.empty) { alert("目前資料庫沒有任何數據可供匯出！"); btn.innerText = "📥 匯出全資料庫 (CSV)"; btn.disabled = false; return; }
+
+                let csvContent = "\uFEFF"; 
+                csvContent += "紀錄時間,玩家ID,玩家暱稱,年齡,身分,遊戲項目,使用手,難易度,每關限時(秒),成功關數,失敗關數,使用裝置,每關詳細秒數(細節),玩家留言\n";
+
+                recordsSnapshot.forEach(doc => {
+                    const r = doc.data();
+                    const userInfo = userMap[r.userId] || { name: "未知玩家", age: "未填", job: "未填" };
+                    const dateStr = r.timestamp ? r.timestamp.toDate().toLocaleString('zh-TW').replace(/,/g, ' ') : '未知';
+                    
+                    let detailStr = "";
+                    if(r.details) {
+                        detailStr = r.details.map(d => `關卡${d.level}(${d.status==='success'?'成功':'失敗'}:${d.time}秒)`).join('; ');
+                    }
+
+                    let cleanFeedback = r.feedback ? r.feedback.replace(/[\r\n,]/g, " ") : "";
+
+                    const row = [
+                        dateStr, r.userId, userInfo.name, userInfo.age, userInfo.job,
+                        r.gameType, r.handUsed, r.difficulty || "easy", r.timeLimit || 10, r.successCount, r.failCount,
+                        r.deviceType || "Desktop", `"${detailStr}"`, `"${cleanFeedback}"`
+                    ].join(",");
+
+
+                    csvContent += row + "\n";
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", `數位健康手部訓練數據庫_${new Date().toISOString().slice(0,10)}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+            } catch (error) {
+                console.error("匯出失敗: ", error);
+                alert("資料匯出失敗，請檢查權限設定。");
+            } finally {
+                btn.innerText = "📥 匯出全資料庫 (CSV)";
+                btn.disabled = false;
+            }
+        });
+
+        // 🚀 網頁載入時立刻抓取玩家名單
+        fetchPlayerList();
+    </script>
+</body>
+</html>
