@@ -195,13 +195,38 @@
         </div>
         <div class="form-group">
             <label>補充說明 (職業類別/運動習慣)</label>
-            <input type="text" id="regJobNote" placeholder="學生 / 籃球系隊 ；  工程師 / 每周打網球">
+            <input type="text" id="regJobNote" placeholder="籃球系隊 / 每周練習2次 ；  工程師 / 每周打網球">
         </div>
         
         <button id="saveProfileBtn" class="btn-primary">儲存資料並進入遊戲</button>
         <p id="regMsg" style="text-align: center; font-weight: bold; color: red;"></p>
     </div>
 
+    <div id="updateProfileBox" class="box-container" style="display: none;">
+        <h2 style="text-align: center; margin-top: 0; color: #007bff;">📝 補齊系統資料</h2>
+        <p style="text-align: center; color: #666; margin-bottom: 20px;">系統偵測到您的資料尚未完整，請補齊以開啟遊戲：</p>
+        
+        <div class="form-group">
+            <label>年齡 <span style="color:red;">*</span></label>
+            <input type="number" id="updAge" min="1" max="120" required>
+        </div>
+        <div class="form-group">
+            <label>身分 <span style="color:red;">*</span></label>
+            <select id="updJob" required>
+                <option value="">請選擇...</option>
+                <option value="學生">學生</option>
+                <option value="上班族">上班族</option>
+                <option value="退休">退休</option>
+                <option value="其他">其他</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>補充說明 (職業類別/運動習慣)</label>
+            <input type="text" id="updJobNote" placeholder="籃球系隊 / 每周練習2次 ；工程師 / 每周打網球">
+        </div>
+        <button id="updateProfileBtn" class="btn-primary">儲存並進入遊戲大廳</button>
+        <p id="updMsg" style="text-align: center; font-weight: bold; color: red;"></p>
+    </div>
 
 
     <div id="gameSelectionBox" class="box-container" style="display: none;">

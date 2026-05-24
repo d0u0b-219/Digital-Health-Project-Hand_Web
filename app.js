@@ -49,8 +49,7 @@ const canvasCtx = canvasElement.getContext('2d');
 const webcam = document.getElementById('webcam');
 
 window.showSection = function(sectionId) {
-    // 💡 確保名單中包含 'registerBox'，並移除了舊的 'loginBox'
-    const list = ['welcomeBox', 'registerBox', 'gameSelectionBox', 'gameSettingsBox', 'pincerPreviewBox', 'gameArea', 'endReportBox', 'playerHistoryBox'];
+    const list = ['welcomeBox', 'registerBox', 'updateProfileBox', 'gameSelectionBox', 'gameSettingsBox', 'pincerPreviewBox', 'gameArea', 'endReportBox', 'playerHistoryBox'];
     list.forEach(id => {
         if(id === 'gameArea') document.getElementById(id).style.display = (id === sectionId) ? 'flex' : 'none';
         else document.getElementById(id).style.display = (id === sectionId) ? 'block' : 'none';
@@ -77,7 +76,6 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUserId = user.uid; 
     
-    // 檢查資料庫是否已經有這位使用者的資料
     const userDocRef = doc(db, "users", currentUserId);
     const userDocSnap = await getDoc(userDocRef);
 
@@ -85,9 +83,14 @@ onAuthStateChanged(auth, async (user) => {
         const data = userDocSnap.data();
         gameState.currentUser = { id: data.id, name: data.name };
         updateUserDisplays(); 
-        showSection('gameSelectionBox'); // 老玩家直接進大廳
+        
+        // 🌟 攔截檢查：如果有漏填年齡或職業，就導向補填頁面 🌟
+        if (!data.age || !data.job) {
+            showSection('updateProfileBox');
+        } else {
+            showSection('gameSelectionBox'); // 老玩家資料齊全，直接進大廳
+        }
     } else {
-        // 新玩家，自動帶入 Google 名字並跳轉到填寫表單
         document.getElementById('regName').value = user.displayName || ''; 
         showSection('registerBox'); 
     }
@@ -109,7 +112,10 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
     const regJobNote = document.getElementById('regJobNote').value;
     const msgEl = document.getElementById('regMsg');
 
-    if (!regName || !regId) return msgEl.innerText = "暱稱與 ID 為必填！";
+    // 🌟 確保所有必填欄位都有填寫 🌟
+    if (!regName || !regId || !regAge || !regJob) {
+        return msgEl.innerText = "❌ 紅星標示欄位皆為必填！";
+    }
     msgEl.innerText = "資料儲存中...";
 
     try {
@@ -120,11 +126,10 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
             return msgEl.innerText = "此 ID 已被使用，請換一個！";
         }
 
-        // 🌟 關鍵：將玩家資料以 Google 的 UID 為檔名安全寫入雲端
         await setDoc(doc(db, "users", currentUserId), {
             id: regId,
             name: regName,
-            age: regAge,
+            age: parseInt(regAge),
             job: regJob,
             jobNote: regJobNote,
             email: auth.currentUser.email,
@@ -142,16 +147,49 @@ document.getElementById('saveProfileBtn').addEventListener('click', async () => 
 });
 
 
+// ==========================================
+// 🌟 新增：處理舊玩家資料補齊邏輯 🌟
+// ==========================================
+document.getElementById('updateProfileBtn').addEventListener('click', async () => {
+    const updAge = document.getElementById('updAge').value;
+    const updJob = document.getElementById('updJob').value;
+    const updJobNote = document.getElementById('updJobNote').value;
+    const updMsg = document.getElementById('updMsg');
+    
+    if (!updAge || !updJob) {
+        return updMsg.innerText = "❌ 欄位均為必填！";
+    }
+    
+    document.getElementById('updateProfileBtn').innerText = "雲端同步中...";
+    
+    try {
+        // 使用 merge: true 屬性，只補上缺少的欄位，不覆蓋舊有的 ID 和姓名
+        await setDoc(doc(db, "users", currentUserId), {
+            age: parseInt(updAge),
+            job: updJob,
+            jobNote: updJobNote
+        }, { merge: true });
+        
+        alert("🎉 資料補齊成功！已同步至雲端。");
+        showSection('gameSelectionBox'); 
+    } catch (error) {
+        console.error("Error updating user profile: ", error);
+        updMsg.innerText = "同步失敗，請檢查連線。";
+    } finally {
+        document.getElementById('updateProfileBtn').innerText = "儲存並進入遊戲大廳";
+    }
+});
 
 
-// 綁定歷史紀錄按鈕
+// ==========================================
+// 查看歷史紀錄 (加入平均時間)
+// ==========================================
 document.getElementById('viewHistoryBtn').addEventListener('click', async () => {
-    showSection('playerHistoryBox'); // 記得在 showSection 的 list 陣列中補上 'playerHistoryBox'
+    showSection('playerHistoryBox');
     const historyList = document.getElementById('historyList');
     historyList.innerHTML = '<p style="text-align: center; color: #999;">資料讀取中...</p>';
 
     try {
-        // 向 Firestore 查詢該玩家的所有紀錄，並依時間遞減排序
         const q = query(
             collection(db, "game_records"), 
             where("userId", "==", gameState.currentUser.id),
@@ -164,23 +202,43 @@ document.getElementById('viewHistoryBtn').addEventListener('click', async () => 
             return;
         }
 
-        historyList.innerHTML = ''; // 清空載入中提示
+        historyList.innerHTML = ''; 
         
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-            // 轉換 Timestamp 為易讀時間
             const dateStr = data.timestamp ? data.timestamp.toDate().toLocaleString('zh-TW') : '未知時間';
             const gameName = { 'palmar': '👊 握拳', 'pincer': '🤏 捏手指', 'numbers': '✌️ 比數字' }[data.gameType];
             
-            // 建立紀錄卡片
+            // 🌟 動態計算成功關卡的平均時間 🌟
+            let avgTimeStr = "0.00";
+            if (data.details && data.details.length > 0) {
+                let totalSecs = 0;
+                let validSuccessCount = 0;
+                data.details.forEach(d => {
+                    if (d.status === 'success') {
+                        totalSecs += parseFloat(d.time);
+                        validSuccessCount++;
+                    }
+                });
+                if (validSuccessCount > 0) {
+                    avgTimeStr = (totalSecs / validSuccessCount).toFixed(2);
+                }
+            }
+
+            // 🌟 核心修改 3：在歷程清單產生「提早結束」標籤
+            const isEarlyExitTag = data.isEarlyExit ? `<span style="background-color: #e9ecef; color: #6c757d; padding: 2px 6px; border-radius: 4px; font-size: 13px; margin-left: 8px; vertical-align: text-bottom;">⚠️ 提早結束</span>` : '';
+
             const item = document.createElement('div');
             item.style.cssText = "background: white; border-left: 5px solid #28a745; padding: 10px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);";
+            
+            // 🌟 將平均時間加入排版中 🌟
             item.innerHTML = `
                 <div style="font-size: 14px; color: #666; margin-bottom: 5px;">📅 ${dateStr}</div>
                 <div style="font-weight: bold; font-size: 18px; color: #333;"> ${gameName} (${data.handUsed === 'both' ? '雙手' : (data.handUsed === 'left' ? '左手' : '右手')})</div>
                 <div style="margin-top: 5px; font-size: 15px;">
                     ✅ 成功: <span style="color: green; font-weight: bold;">${data.successCount}</span> | 
-                    ❌ 失敗: <span style="color: red; font-weight: bold;">${data.failCount}</span>
+                    ❌ 失敗: <span style="color: red; font-weight: bold;">${data.failCount}</span> | 
+                    <span style="color: #007bff; font-weight: bold;">⏱️ 平均: ${avgTimeStr} 秒</span>
                 </div>
             `;
             historyList.appendChild(item);
@@ -188,11 +246,10 @@ document.getElementById('viewHistoryBtn').addEventListener('click', async () => 
 
     } catch (error) {
         console.error("讀取歷史紀錄失敗: ", error);
-        // 第一次使用 orderBy 時，Firebase 控制台會要求建立「複合索引 (Index)」。
-        // 如果報錯，請打開 Console 點擊 Firebase 提供的連結，一鍵建立索引。
         historyList.innerHTML = '<p style="text-align: center; color: red;">讀取失敗，請確認網路連線或資料庫索引設定。</p>';
     }
 });
+
 
 // 🌟 判斷玩家裝置類型的輔助函式
 function getDeviceType() {
@@ -227,10 +284,9 @@ document.getElementById('saveDataBtn').addEventListener('click', async () => {
             failCount: gameState.currentReport ? gameState.currentReport.fail : 0,
             details: gameState.currentReport ? gameState.currentReport.details : [],
             feedback: feedbackText,
-            
-            // 🌟 在這裡新增裝置類型欄位 🌟
-            deviceType: getDeviceType(), 
-            
+            deviceType: getDeviceType(),  // 🌟 在這裡新增裝置類型欄位 🌟
+            // 🌟 核心修改 2：將提早結束的標記正式寫入資料庫
+            isEarlyExit: gameState.currentReport ? !!gameState.currentReport.isEarlyExit : false,
             timestamp: serverTimestamp()
         });
 
@@ -453,7 +509,10 @@ window.saveGameRecord = function(records, isEarlyExit = false) {
 
     document.getElementById('reportDataContent').innerHTML = reportHTML;
     
-    gameState.currentReport = records; 
+    // 🌟 核心修改 1：把 isEarlyExit 一併存入暫存狀態中
+    gameState.currentReport = records || { success: 0, fail: 0, details: [] }; 
+    gameState.currentReport.isEarlyExit = isEarlyExit;
+
     showSection('endReportBox');
 };
 

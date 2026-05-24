@@ -193,6 +193,9 @@
                         });
                     } else { detailsHTML = "無關卡細節資料"; }
 
+                    // 🌟 後台卡片：產生提早結束標籤
+                    const adminEarlyExitTag = record.isEarlyExit ? `<span style="background-color: #ffc107; color: #856404; padding: 2px 8px; border-radius: 4px; font-size: 13px; margin-left: 10px; font-weight: bold;">⚠️ 提早結束</span>` : '';
+
                     // E. 建立卡片元件 (內部包含按鈕與隱藏的 Canvas)
                     const canvasId = `chart-${recordId}`;
                     const card = document.createElement('div');
@@ -329,7 +332,7 @@
                 if(recordsSnapshot.empty) { alert("目前資料庫沒有任何數據可供匯出！"); btn.innerText = "📥 匯出全資料庫 (CSV)"; btn.disabled = false; return; }
 
                 let csvContent = "\uFEFF"; 
-                csvContent += "紀錄時間,玩家ID,玩家暱稱,年齡,身分,遊戲項目,使用手,難易度,每關限時(秒),成功關數,失敗關數,使用裝置,每關詳細秒數(細節),玩家留言\n";
+                csvContent += "紀錄時間,玩家ID,玩家暱稱,年齡,身分,遊戲項目,使用手,難易度,每關限時(秒),成功關數,失敗關數,使用裝置,是否提早結束,每關詳細秒數(細節),玩家留言\n";
 
                 recordsSnapshot.forEach(doc => {
                     const r = doc.data();
@@ -342,6 +345,9 @@
                     }
 
                     let cleanFeedback = r.feedback ? r.feedback.replace(/[\r\n,]/g, " ") : "";
+
+                    // 🌟 CSV資料：判斷是否提早結束
+                    const isEarlyExitStr = r.isEarlyExit ? "是" : "否";
 
                     const row = [
                         dateStr, r.userId, userInfo.name, userInfo.age, userInfo.job,
