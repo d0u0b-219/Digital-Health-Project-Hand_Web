@@ -228,13 +228,26 @@ document.getElementById('viewHistoryBtn').addEventListener('click', async () => 
             // 🌟 核心修改 3：在歷程清單產生「提早結束」標籤
             const isEarlyExitTag = data.isEarlyExit ? `<span style="background-color: #e9ecef; color: #6c757d; padding: 2px 6px; border-radius: 4px; font-size: 13px; margin-left: 8px; vertical-align: text-bottom;">⚠️ 提早結束</span>` : '';
 
+            // 判斷難易度
+            let diffStr = "";
+            if (data.gameType === 'pincer' && data.difficulty) {
+                diffStr = data.difficulty === 'hard' ? '<span style="color:#dc3545; font-size: 14px; margin-left: 4px;">(困難)</span>' : '<span style="color:#28a745; font-size: 14px; margin-left: 4px;">(簡單)</span>';
+            }
+
+            // 🌟 新增：計算設定的關卡與實際玩的關卡 (為了相容舊資料，若無 targetLevels 則以實際玩的關數為主)
+            let targetLevels = data.targetLevels || (data.details ? data.details.length : 0);
+            let playedLevels = data.details ? data.details.length : 0;
+
             const item = document.createElement('div');
             item.style.cssText = "background: white; border-left: 5px solid #28a745; padding: 10px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);";
             
-            // 🌟 將平均時間加入排版中 🌟
+            // 🌟 將「設定 X 關 / 實際完成 Y 關」加入排版中 🌟
             item.innerHTML = `
-                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">📅 ${dateStr}</div>
-                <div style="font-weight: bold; font-size: 18px; color: #333;"> ${gameName} (${data.handUsed === 'both' ? '雙手' : (data.handUsed === 'left' ? '左手' : '右手')})</div>
+                <div style="font-size: 14px; color: #666; margin-bottom: 5px;">📅 ${dateStr} ${isEarlyExitTag}</div>
+                <div style="font-weight: bold; font-size: 18px; color: #333;"> ${gameName} (${data.handUsed === 'both' ? '雙手' : (data.handUsed === 'left' ? '左手' : '右手')}) ${diffStr}</div>
+                <div style="margin-top: 5px; font-size: 14px; color: #555;">
+                    ⚙️ 設定 <span style="font-weight: bold;">${targetLevels}</span> 關 ｜ 實際遊玩 <span style="font-weight: bold;">${playedLevels}</span> 關
+                </div>
                 <div style="margin-top: 5px; font-size: 15px;">
                     ✅ 成功: <span style="color: green; font-weight: bold;">${data.successCount}</span> | 
                     ❌ 失敗: <span style="color: red; font-weight: bold;">${data.failCount}</span> | 
@@ -280,12 +293,12 @@ document.getElementById('saveDataBtn').addEventListener('click', async () => {
             handUsed: gameState.handUsed,
             difficulty: gameState.difficulty,
             timeLimit: parseInt(document.getElementById('timeLimit').value) || 10,
+            targetLevels: parseInt(document.getElementById('levelCount').value) || 10, // 🌟 新增這行：記錄一開始設定的關卡數
             successCount: gameState.currentReport ? gameState.currentReport.success : 0,
             failCount: gameState.currentReport ? gameState.currentReport.fail : 0,
             details: gameState.currentReport ? gameState.currentReport.details : [],
             feedback: feedbackText,
-            deviceType: getDeviceType(),  // 🌟 在這裡新增裝置類型欄位 🌟
-            // 🌟 核心修改 2：將提早結束的標記正式寫入資料庫
+            deviceType: getDeviceType(),
             isEarlyExit: gameState.currentReport ? !!gameState.currentReport.isEarlyExit : false,
             timestamp: serverTimestamp()
         });
