@@ -198,6 +198,11 @@ document.getElementById('updateProfileBtn').addEventListener('click', async () =
 // 查看歷史紀錄 (加入平均時間)
 // ==========================================
 document.getElementById('viewHistoryBtn').addEventListener('click', async () => {
+  // ▼ 新增：防呆，訪客無歷史紀錄 ▼
+    if (gameState.currentUser.id === 'guest') {
+        alert("訪客模式無歷史紀錄！若要追蹤成效請使用 Google 登入。");
+        return;
+    }
     showSection('playerHistoryBox');
     const historyList = document.getElementById('historyList');
     historyList.innerHTML = '<p style="text-align: center; color: #999;">資料讀取中...</p>';
@@ -295,6 +300,14 @@ function getDeviceType() {
 document.getElementById('saveDataBtn').addEventListener('click', async () => { 
     const feedbackText = document.getElementById('playerFeedback').value;
     const saveBtn = document.getElementById('saveDataBtn');
+
+  // ▼ 新增：攔截訪客模式，不寫入資料庫 ▼
+    if (gameState.currentUser.id === 'guest') {
+        alert("訪客模式已結束試玩，資料不會寫入雲端資料庫，將為您返回大廳！");
+        document.getElementById('playerFeedback').value = ''; 
+        showSection('gameSelectionBox'); 
+        return; // 提早結束，不執行下方的 addDoc
+    }
     
     saveBtn.innerText = "資料上傳中...";
     saveBtn.disabled = true;
