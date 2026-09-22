@@ -72,6 +72,19 @@ loginBtn.addEventListener('click', () => {
   });
 });
 
+// ▼ 新增：訪客登入邏輯 ▼
+document.getElementById('btn-guest').addEventListener('click', () => {
+    // 設定虛擬的訪客 ID 與狀態
+    currentUserId = 'guest_user';
+    gameState.currentUser = { id: 'guest', name: '訪客' };
+    
+    // 更新畫面上顯示的名字
+    updateUserDisplays(); 
+    
+    // 直接進入遊戲大廳
+    showSection('gameSelectionBox');
+});
+
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUserId = user.uid; 
